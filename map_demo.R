@@ -1,48 +1,52 @@
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(dplyr, sf, leaflet)
+pacman::p_load(dplyr, sf, leaflet, install = FALSE)
 
 
 #use ons API to download the geojson file required
-#https://geoportal.statistics.gov.uk/datasets/ons::cancer-alliances-july-2023-boundaries-en-bfc-2/about
+#https://geoportal.statistics.gov.uk/search?q=BDY_HLT&sort=Date%20Created%7Ccreated%7Cdesc
+#https://geoportal.statistics.gov.uk/datasets/8e5561d496d74f9796d7fda2f2bc4065_0/explore
 
-map_ca <- read_sf('https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/Cancer_Alliances_July_2023_Boundaries_EN_BFE/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson') 
+map_icb <- read_sf('https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/Integrated_Care_Boards_April_2023_EN_BFE/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson') 
 
-# visualise basic CA map
+# visualise basic ICB map
 
-map_ca %>% 
+map_icb %>% 
   leaflet() %>% 
   addPolygons(weight = 1)
 
 
-# merging EoE north and south
+# merging Norfolk and Waveney and Suffolk and North East Essex ICBs as an example
 
-map_ca_latest <- map_ca %>% 
-  mutate(CA = if_else(CAL23NM %in% c('East of England - North', 'East of England - South'), "East of England", CAL23NM)) %>% 
-  group_by(CA) %>% 
-  summarise()
+map_icb_latest <- map_icb %>% 
+  mutate(ICB = if_else(ICB23NM %in%  c('NHS Norfolk and Waveney Integrated Care Board',
+                                       'NHS Suffolk and North East Essex Integrated Care Board'),
+                       "East of England",
+                       ICB23NM
+                       )
+         ) %>% 
+  group_by(ICB) %>% 
+  summarise(.groups = 'drop')
   
   
-map_ca_latest %>% 
+map_icb_latest %>% 
   leaflet() %>% 
   addPolygons(weight = 1)
 
-# example dataset prep
+# example: generate random number dataset prep
 
-map_demo_data <- map_demo_data %>% 
-  mutate(Performance = Within/Total * 100)
+map_icb_latest_randomdata <- map_icb_latest %>% 
+  mutate(Performance = sample(100,
+                              size = nrow(map_icb_latest),
+                              replace = TRUE
+                              ))
 
-# merge the shape file with the example dataset
-
-map_ca_latest_demo_data <- map_ca_latest %>% 
-  left_join(map_demo_data, by = "CA" )
 
 # define the colours
 
-paletteNum <- colorNumeric('Blues', domain = map_ca_latest_demo_data$Performance)
+paletteNum <- colorNumeric('Blues', domain = map_icb_latest_randomdata$Performance)
 
 # visualise the performance based on the colours defined
 
-map_ca_latest_demo_data %>% 
+map_icb_latest_randomdata %>% 
   leaflet() %>% 
   addPolygons(
     color = 'white',
@@ -50,12 +54,13 @@ map_ca_latest_demo_data %>%
     fillOpacity = 1,
     weight = 1,
     opacity = 1,
-    fillColor = ~paletteNum(map_ca_latest_demo_data$Performance))
+    fillColor = ~paletteNum(map_icb_latest_randomdata$Performance)
+    )
 
 
 # introduce highlight visuals
 
-map_ca_latest_demo_data %>% 
+map_icb_latest_randomdata %>% 
   leaflet() %>% 
   addPolygons(
     color = 'white',
@@ -63,7 +68,7 @@ map_ca_latest_demo_data %>%
     fillOpacity = .75,
     weight = 1,
     opacity = 1,
-    fillColor = ~paletteNum(map_ca_latest_demo_data$Performance),
+    fillColor = ~paletteNum(map_icb_latest_randomdata$Performance),
     highlightOptions = highlightOptions(
       weight = 2,
       color = 'black',
@@ -75,13 +80,14 @@ map_ca_latest_demo_data %>%
 # define tooltip labels
 
 labels <- sprintf(
-  "<strong>%s</strong><br/>FDS Performance: %s%%",
-  map_ca_latest_demo_data$CA, map_ca_latest_demo_data$Performance %>% round(digits = 1)
+  "<strong>%s</strong><br/>Random Performance: %s%%",
+  map_icb_latest_randomdata$ICB, 
+  map_icb_latest_randomdata$Performance 
 ) %>% lapply(htmltools::HTML)
 
 # introduce tooltip
  
-map_ca_latest_demo_data %>% 
+map_icb_latest_randomdata %>% 
   leaflet() %>% 
   addPolygons(
     color = 'white',
@@ -89,7 +95,7 @@ map_ca_latest_demo_data %>%
     fillOpacity = .75,
     weight = 1,
     opacity = 1,
-    fillColor = ~paletteNum(map_ca_latest_demo_data$Performance),
+    fillColor = ~paletteNum(map_icb_latest_randomdata$Performance),
     highlightOptions = highlightOptions(
       weight = 2,
       color = 'black',
@@ -104,7 +110,7 @@ map_ca_latest_demo_data %>%
   ) 
 # introduce legend
 
-map_ca_latest_demo_data %>% 
+map_icb_latest_randomdata %>% 
   leaflet() %>% 
   addPolygons(
     color = 'white',
@@ -112,7 +118,7 @@ map_ca_latest_demo_data %>%
     fillOpacity = .75,
     weight = 1,
     opacity = 1,
-    fillColor = ~paletteNum(map_ca_latest_demo_data$Performance),
+    fillColor = ~paletteNum(map_icb_latest_randomdata$Performance),
     highlightOptions = highlightOptions(
       weight = 2,
       color = 'black',
@@ -125,7 +131,7 @@ map_ca_latest_demo_data %>%
       textsize = "15px",
       direction = "auto")
   ) %>% 
-  addLegend(pal = paletteNum, values = map_ca_latest_demo_data$Performance,
-            title = '<small>FDS Performance by Cancer Alliance<br> source: CWT</small>',
+  addLegend(pal = paletteNum, values = map_icb_latest_randomdata$Performance,
+            title = '<small>Random Performance by incorrect ICB<br> source: Unknown</small>',
             labFormat = labelFormat(suffix = "%"),
             position = 'bottomright')
